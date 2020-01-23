@@ -1,0 +1,63 @@
+FROM ubuntu
+
+# install sudo
+RUN apt-get update
+RUN apt-get install -y sudo
+
+# USER STUFF
+RUN adduser --disabled-password --gecos '' dharty
+RUN adduser dharty sudo
+RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+USER dharty
+
+# Add user to the docker group (to be able to use docker from
+# within the container
+RUN sudo groupadd docker
+RUN sudo usermod -a -G docker dharty
+
+# INSTALL APPLICATIONS
+RUN sudo apt-get install -y apt-utils
+RUN sudo apt-get install -y nginx
+RUN sudo apt-get install -y nodejs
+RUN sudo apt-get install -y npm
+RUN sudo apt-get install -y nano
+
+# INSTALL DOCKER
+RUN sudo apt-get install -y\
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg2 \
+    software-properties-common
+
+RUN sudo apt-get install -y curl
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key add -
+RUN sudo add-apt-repository \
+    "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+    $(lsb_release -cs) stable"
+
+RUN sudo apt-get update
+RUN sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+RUN apt-cache madison docker-ce
+
+RUN sudo curl -L \
+    "https://github.com/docker/compose/releases/download/v1.25.2/docker-compose-$(uname -s)-$(uname -m)" \
+    -o /usr/local/bin/docker-compose
+
+# INSTALL DOCKER6COMPOSE
+RUN sudo chmod +x /usr/local/bin/docker-compose
+
+# NGINX CONFIGURATION
+RUN sudo unlink /etc/nginx/sites-enabled/default
+COPY reverse-proxy.conf  /etc/nginx/sites-available
+RUN sudo ln -s /etc/nginx/sites-available/reverse-proxy.conf /etc/nginx/sites-enabled/reverse-proxy.conf
+
+# SETUP A DIR WITH SPECIFIC CONTENTS
+RUN sudo mkdir -p /home/node/app
+COPY nodeapp_dockerfile /home/node/app/dockerfile
+
+# SET THE DIRECTORY TO BE AT WHEN ENTERING THE CONTAINER
+WORKDIR /home/node/app
+
+# THE COMMAND TO AUTO-EXECUTE ON CONTAINER STARTUP
+ENTRYPOINT sudo service docker start && bash
